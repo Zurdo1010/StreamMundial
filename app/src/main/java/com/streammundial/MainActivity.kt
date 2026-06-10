@@ -4,15 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -41,21 +42,18 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// Controlador de pantallas: Decide si muestra la lista o el reproductor
 @Composable
 fun AppNavigation() {
     var selectedChannel by remember { mutableStateOf<Channel?>(null) }
 
     if (selectedChannel == null) {
-        // Le pasamos la instrucción de qué hacer al tocar un canal
         ChannelListScreen(onChannelSelected = { canalTocado -> 
             selectedChannel = canalTocado 
         })
     } else {
-        // Si hay un canal seleccionado, abrimos el reproductor
         VideoPlayerScreen(
             channel = selectedChannel!!,
-            onBack = { selectedChannel = null } // Para regresar a la lista
+            onBack = { selectedChannel = null }
         )
     }
 }
@@ -86,14 +84,28 @@ fun ChannelListScreen(onChannelSelected: (Channel) -> Unit) {
     } else {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             items(channels) { channel ->
+                // ESTA ES LA MAGIA: Variable para saber si el control remoto está apuntando aquí
+                var isFocused by remember { mutableStateOf(false) }
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onChannelSelected(channel) } // ¡Aquí activamos el toque!
+                        .onFocusChanged { focusState -> isFocused = focusState.isFocused }
+                        // Cambiamos el color de fondo si está enfocado
+                        .background(if (isFocused) MaterialTheme.colorScheme.primaryContainer else Color.Transparent)
+                        .clickable { onChannelSelected(channel) }
                         .padding(16.dp)
                 ) {
-                    Text(text = channel.name, style = MaterialTheme.typography.titleMedium)
-                    Text(text = channel.group, style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        text = channel.name, 
+                        style = MaterialTheme.typography.titleMedium,
+                        color = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
+                        text = channel.group, 
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (isFocused) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                     HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
                 }
             }
@@ -104,32 +116,39 @@ fun ChannelListScreen(onChannelSelected: (Channel) -> Unit) {
 @Composable
 fun VideoPlayerScreen(channel: Channel, onBack: () -> Unit) {
     val context = LocalContext.current
-    
-    // Detectar cuando toques el botón de "Atrás" de tu celular
     BackHandler { onBack() }
 
-    // Preparar el motor ExoPlayer
     val exoPlayer = remember {
         ExoPlayer.Builder(context).build().apply {
             val mediaItem = MediaItem.fromUri(channel.streamUrl)
             setMediaItem(mediaItem)
             prepare()
-            playWhenReady = true // Autoplay
+            playWhenReady = true
         }
     }
 
-    // Apagar y liberar memoria cuando regreses a la lista
     DisposableEffect(Unit) {
         onDispose {
             exoPlayer.release()
         }
     }
 
-    // Interfaz del reproductor
     Column(modifier = Modifier.fillMaxSize()) {
-        Button(onClick = onBack, modifier = Modifier.padding(8.dp)) {
+        // Al botón de regresar también le ponemos foco para salir del video con el control
+        var isButtonFocused by remember { mutableStateOf(false) }
+        
+        Button(
+            onClick = onBack, 
+            modifier = Modifier
+                .padding(8.dp)
+                .onFocusChanged { isButtonFocused = it.isFocused },
+            colors = ButtonDefaults.buttonColors(
+                containerColor = if (isButtonFocused) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+            )
+        ) {
             Text("← Regresar a la lista")
         }
+        
         AndroidView(
             factory = { ctx ->
                 PlayerView(ctx).apply {
