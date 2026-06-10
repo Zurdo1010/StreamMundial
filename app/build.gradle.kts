@@ -1,7 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
-    alias(libs.plugins.compose.compiler) // <-- El nuevo conector de Kotlin 2.0
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -28,11 +28,9 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
-    
     buildFeatures {
         compose = true
     }
-    // ¡Adiós al bloque composeOptions que causaba el error!
 }
 
 dependencies {
@@ -42,7 +40,5 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.activity:activity-compose:1.8.2")
-    
-    // AQUÍ AGREGAMOS LA LIBRERÍA DE SEGUNDO PLANO (CORRUTINAS)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
 }
