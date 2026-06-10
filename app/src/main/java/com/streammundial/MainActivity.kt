@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -16,6 +18,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
 import com.streammundial.models.Match
+import com.streammundial.utils.MatchScheduler
 import com.streammundial.utils.StreamScraper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -48,53 +51,71 @@ fun AppNavigation() {
 @Composable
 fun MatchListScreen(onStreamFound: (String) -> Unit) {
     val coroutineScope = rememberCoroutineScope()
-    var isScraping by remember { mutableStateOf(false) }
+    var matches by remember { mutableStateOf<List<Match>>(emptyList()) }
+    var isLoadingAgenda by remember { mutableStateOf(true) }
+    
+    // Variables para el rastreo del partido individual
+    var scrapingMatch by remember { mutableStateOf<Match?>(null) }
     var resultMessage by remember { mutableStateOf("") }
 
-    // Tarjeta de prueba para el rastreador
-    val testMatch = Match(
-        title = "Club América vs Atlas FC",
-        time = "EN VIVO",
-        sourceUrl = "http://pirlotv.fr" // El bot atacará esta url
-    )
+    // Al abrir la app, el bot descarga la agenda de hoy
+    LaunchedEffect(Unit) {
+        val todaysMatches = MatchScheduler.getTodaysMatches()
+        matches = todaysMatches
+        isLoadingAgenda = false
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Text("Partidos de Hoy", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        Card(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(text = testMatch.title, style = MaterialTheme.typography.titleLarge)
-                Text(text = testMatch.time, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(16.dp))
+        if (isLoadingAgenda) {
+            CircularProgressIndicator(modifier = Modifier.padding(32.dp))
+            Text("Leyendo la cartelera deportiva...")
+        } else if (matches.isEmpty()) {
+            Text("No se encontraron partidos programados para hoy en la cartelera principal.")
+        } else {
+            LazyColumn(modifier = Modifier.weight(1f)) {
+                items(matches) { match ->
+                    Card(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(text = match.title, style = MaterialTheme.typography.titleMedium)
+                            Text(text = match.time, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                            Spacer(modifier = Modifier.height(8.dp))
 
-                Button(
-                    onClick = {
-                        isScraping = true
-                        resultMessage = "El bot está escaneando la página..."
-                        coroutineScope.launch {
-                            val links = StreamScraper.findStreamsInPage(testMatch.sourceUrl)
-                            isScraping = false
-                            if (links.isNotEmpty()) {
-                                resultMessage = "¡Enlace encontrado! Abriendo reproductor..."
-                                onStreamFound(links.first()) // Mandamos el primer link al reproductor
-                            } else {
-                                resultMessage = "El bot no encontró enlaces directos en esta URL."
+                            val isThisMatchScraping = scrapingMatch == match
+                            
+                            Button(
+                                onClick = {
+                                    scrapingMatch = match
+                                    resultMessage = "Buscando enlaces para ${match.title}..."
+                                    
+                                    // Inicia el rastreo específico para este partido
+                                    coroutineScope.launch {
+                                        val links = StreamScraper.findStreamsInPage(match.sourceUrl)
+                                        scrapingMatch = null
+                                        if (links.isNotEmpty()) {
+                                            resultMessage = ""
+                                            onStreamFound(links.first())
+                                        } else {
+                                            resultMessage = "El bot no encontró enlaces directos para este partido."
+                                        }
+                                    }
+                                },
+                                enabled = scrapingMatch == null, // Bloquea los botones mientras busca uno
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(if (isThisMatchScraping) "Rastreando..." else "Buscar Transmisión")
                             }
                         }
-                    },
-                    enabled = !isScraping,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (isScraping) "Rastreando..." else "Buscar Transmisión")
+                    }
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-        Text(resultMessage)
-        if (isScraping) {
-            CircularProgressIndicator(modifier = Modifier.padding(top = 16.dp))
+            // Mensaje de estado del rastreo en la parte inferior
+            if (resultMessage.isNotEmpty() || scrapingMatch != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(resultMessage, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.primary)
+            }
         }
     }
 }
