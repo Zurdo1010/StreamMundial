@@ -47,4 +47,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer-hls:1.2.1") // Decodificador de streams en vivo
     implementation("androidx.media3:media3-ui:1.2.1")
     implementation("androidx.media3:media3-common:1.2.1")
+// El motor del bot rastreador para leer páginas web
+    implementation("org.jsoup:jsoup:1.17.2")
 }
