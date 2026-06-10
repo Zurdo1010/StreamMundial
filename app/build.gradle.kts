@@ -42,8 +42,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.8.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3")
     
-    // Las herramientas del motor de video ExoPlayer (Media3)
+    // Las herramientas del motor de video ExoPlayer
     implementation("androidx.media3:media3-exoplayer:1.2.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.2.1") // Decodificador de streams en vivo
     implementation("androidx.media3:media3-ui:1.2.1")
     implementation("androidx.media3:media3-common:1.2.1")
 }
