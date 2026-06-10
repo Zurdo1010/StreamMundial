@@ -19,7 +19,6 @@ object MatchScheduler {
             "https://www.rojadirecto.blog/"
         )
 
-        // Nuestra "lupa" matemática para encontrar cualquier texto que parezca una hora (ej. 14:30 o 09:00)
         val timeRegex = Regex("""([0-1]?[0-9]|2[0-3]):([0-5][0-9])""")
 
         for (url in targetUrls) {
@@ -33,45 +32,39 @@ object MatchScheduler {
                 val elements = document.select("a[href]")
                 
                 for (element in elements) {
-                    val originalTitle = element.text().trim()
+                    val linkText = element.text().trim()
+                    // EL TRUCO: Le pedimos al bot que lea el contenedor "padre" para capturar el texto que rodea al enlace
+                    val fullLineText = element.parent()?.text() ?: linkText
                     val matchUrl = element.attr("abs:href")
 
-                    if (originalTitle.isNotEmpty() && matchUrl.startsWith("http")) {
-                        val isLiveEvent = originalTitle.contains(" vs ", ignoreCase = true) || 
-                                          originalTitle.contains(" v ", ignoreCase = true) || 
-                                          originalTitle.contains(" - ")
+                    if (linkText.isNotEmpty() && matchUrl.startsWith("http")) {
+                        val isLiveEvent = linkText.contains(" vs ", ignoreCase = true) || 
+                                          linkText.contains(" v ", ignoreCase = true) || 
+                                          linkText.contains(" - ")
                         
-                        if (isLiveEvent && !matchUrl.contains("javascript") && originalTitle.length > 4) {
+                        if (isLiveEvent && !matchUrl.contains("javascript") && linkText.length > 4) {
                             
                             var matchTime = "En Vivo"
-                            var cleanTitle = originalTitle
+                            // Limpiamos el título por si algún guion o número extraño se coló en el nombre de los equipos
+                            val cleanTitle = linkText.replace(timeRegex, "").replace(Regex("""^[\s\-:|]+"""), "").trim()
 
-                            // 1. Extraemos la hora original del texto
-                            val timeMatch = timeRegex.find(originalTitle)
+                            // Buscamos la hora en la LÍNEA COMPLETA, no solo en el enlace
+                            val timeMatch = timeRegex.find(fullLineText)
                             if (timeMatch != null) {
                                 val extractedTime = timeMatch.value
                                 
-                                // 2. Limpiamos el título para que no traiga la hora incrustada ni guiones sueltos
-                                cleanTitle = originalTitle.replace(extractedTime, "")
-                                    .replace(Regex("""^[\s\-:|]+"""), "") // Borra basura al inicio del texto
-                                    .trim()
-
-                                // 3. Hacemos la conversión de huso horario
                                 try {
-                                    // Le indicamos que la página origen suele usar la hora de Madrid (CET)
                                     val sourceFormat = SimpleDateFormat("HH:mm", Locale.getDefault())
                                     sourceFormat.timeZone = TimeZone.getTimeZone("Europe/Madrid")
                                     
                                     val date = sourceFormat.parse(extractedTime)
                                     
                                     if (date != null) {
-                                        // Lo pasamos a la zona horaria del dispositivo en formato am/pm (ej. 03:00 PM)
                                         val localFormat = SimpleDateFormat("hh:mm a", Locale.getDefault())
                                         localFormat.timeZone = TimeZone.getDefault()
                                         matchTime = localFormat.format(date)
                                     }
                                 } catch (e: Exception) {
-                                    // Si la matemática falla, conservamos la hora original del texto
                                     matchTime = extractedTime 
                                 }
                             }
